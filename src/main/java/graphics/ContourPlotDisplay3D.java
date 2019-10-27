@@ -610,9 +610,9 @@ public class ContourPlotDisplay3D extends JPanel {
     }
     
     public static class TextureGenerator {
-        private static final Color HIGH_COLOR = /*new Color(0x7fbff3)*/ new Color(0xff9900);
-        private static final Color LOW_COLOR = /*new Color(0xec80aa)*/ new Color(0x0099ff);
-        private static final Color CONTOUR_COLOR = /*new Color(0x8869ff)*/ new Color(0xffffff);
+        private static final Color HIGH_COLOR = /*new Color(0x7fbff3)*/ new Color(0xff6600);
+        private static final Color LOW_COLOR = /*new Color(0xec80aa)*/ new Color(0x669955);
+        private static final Color CONTOUR_COLOR = /*new Color(0x8869ff)*/ new Color(0x111111);
     
         private double lowerZ = Double.NEGATIVE_INFINITY;
         private double upperZ = Double.POSITIVE_INFINITY;

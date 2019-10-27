@@ -78,7 +78,7 @@ public class MainWindow {
             Transform3D transform = new Transform3D(new Point3D(offX, offY, offZ), new Point3D(Math.toRadians(rotX), Math.toRadians(rotY), Math.toRadians(rotZ)), new Point3D(scaleX, scaleY, scaleZ));
             
             //graph.getModels().put(models.get(modelSel.getSelectedIndex()), transform);
-            BiFunction<Double, Double, Double> f = (x, z) -> (1/5.0) * Math.sin(x) * Math.cos(z) - (3/2.0) * Math.cos(7 * (Math.pow(x - Math.PI, 2) + Math.pow(z - Math.PI, 2))/4) * Math.exp(-(Math.pow(x - Math.PI, 2) + Math.pow(z - Math.PI, 2)));
+            BiFunction<Double, Double, Double> f = (x, z) -> -((1/5.0) * Math.sin(x) * Math.cos(z) - (3/2.0) * Math.cos(7 * (Math.pow(x - Math.PI, 2) + Math.pow(z - Math.PI, 2))/4) * Math.exp(-(Math.pow(x - Math.PI, 2) + Math.pow(z - Math.PI, 2))));
             ContourPlotDisplay3D.FunctionCache cache = new ContourPlotDisplay3D.FunctionCache(f, 20, 0, 6.283, 0, 6.283);
             graph.getModels().put(cache.getModel(), transform);
             graph.setCache(cache);

@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="Topography-3D:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/Topography_3D_jar</output-path>
+    <root id="archive" name="Topography-3D.jar">
+      <element id="module-output" name="Topography-3D" />
+    </root>
+  </artifact>
+</component>
