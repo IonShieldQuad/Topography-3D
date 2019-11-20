@@ -518,7 +518,12 @@ public class ContourPlotDisplay3D extends JPanel {
                 for (int j = 0; j <= resolution; j++) {
                     double x = lowerX + deltaX * j;
                     double y = lowerY + deltaY * i;
-                    vertices.add(new Point3D(x, get(x, y), y, j / (double)resolution, i / (double)resolution));
+                    double z = get(x, y);
+                    
+                    double normX = 2.0 * j / (double)resolution - 1;
+                    double normY = 2.0 * i / (double)resolution - 1;
+                    double normZ = 1.0 * (z - min) / (max - min) - 0.5;
+                    vertices.add(new Point3D(normX, normZ, normY, j / (double)resolution, i / (double)resolution));
                 }
             }
     
