@@ -12,11 +12,21 @@ public class Polygon {
     }
     
     public Point3D barycentric(Point3D p) {
-        Point3D v1 = a.minus(p);
-        Point3D v2 = b.minus(p);
-        Point3D v3 = c.minus(p);
+        Point3D v0 = b.minus(a);
+        Point3D v1 = c.minus(a);
+        Point3D v2 = p.minus(a);
         
-        Point3D va0 = ((a.minus(b)).cross(a.minus(c)));
+        double den = v0.getX() * v1.getY() - v1.getX() * v0.getY();
+        
+        double a2 = (v2.getX() * v1.getY() - v1.getX() * v2.getY()) / den;
+        double a3 = (v0.getX() * v2.getY() - v2.getX() * v0.getY()) / den;
+        double a1 = 1.0 - a2 - a3;
+        
+        /*Point3D v1 = p.minus(a);
+        Point3D v2 = p.minus(b);
+        Point3D v3 = p.minus(c);
+        
+        Point3D va0 = ((b.minus(a)).cross(c.minus(a)));
         Point3D va1 = v2.cross(v3);
         Point3D va2 = v3.cross(v1);
         Point3D va3 = v1.cross(v2);
@@ -26,7 +36,7 @@ public class Polygon {
         double a1 = (va1.magn() / a0) * Math.signum(va0.dot(va1));
         double a2 = (va2.magn() / a0) * Math.signum(va0.dot(va2));
         double a3 = (va3.magn() / a0) * Math.signum(va0.dot(va3));
-    
+        a1 = 1 - a2 - a3;*/
         /*System.out.println("p: " + p);
         System.out.println("pts: " + a + b + c);
         System.out.println("v: " + v1 + v2 + v3);

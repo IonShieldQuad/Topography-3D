@@ -8,6 +8,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.WritableRaster;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
 public class ContourPlotDisplay3D extends JPanel {
@@ -40,6 +41,13 @@ public class ContourPlotDisplay3D extends JPanel {
     private boolean useMipmap = true;
     private double mipmapBiasU = 0;
     private double mipmapBiasV = 0;
+    
+    private boolean drawContours = true;
+    private int contours = 20;
+    private double contourOffset = 0;
+    private Color contourColor = Color.BLACK;
+    
+    private BufferedImage image;
     
     public ContourPlotDisplay3D() {
         super();
@@ -75,8 +83,13 @@ public class ContourPlotDisplay3D extends JPanel {
             }
         }
         else {
-            TextureGenerator texGen = new TextureGenerator(cache, textureResolution, textureResolution);
-            texture = texGen.generateTexture();
+            if (image == null) {
+                TextureGenerator texGen = new TextureGenerator(cache, textureResolution, textureResolution);
+                texture = texGen.generateTexture();
+            }
+            else {
+                texture = image;
+            }
         }
         mipmapper = new Mipmapper(texture);
         
@@ -171,7 +184,7 @@ public class ContourPlotDisplay3D extends JPanel {
                 
                 Polygon transformedPolygon = new Polygon(a, b, c);
                 
-                drawPolygon(g, transformedPolygon, mipmapper, zBuffer);
+                drawPolygon(g, transformedPolygon, polygon, mipmapper, zBuffer);
                 
                 if (showOutline) {
                     g.setColor(color);
@@ -263,6 +276,10 @@ public class ContourPlotDisplay3D extends JPanel {
     }
     
     private void drawPolygon(Graphics g, Polygon p, Mipmapper mm, List<Double> zBuffer) {
+        drawPolygon(g, p, p, mm, zBuffer);
+    }
+    
+    private void drawPolygon(Graphics g, Polygon p, Polygon orig, Mipmapper mm, List<Double> zBuffer) {
         //System.out.println("Polygon: " + p.a + p.b + p.c);
         Polygon proj = new Polygon(p.a.copy(), p.b.copy(), p.c.copy());
         proj.a.setZ(0);
@@ -273,48 +290,188 @@ public class ContourPlotDisplay3D extends JPanel {
         int minY = (int)Math.round(Math.min(Math.min(p.a.getY(), p.b.getY()), p.c.getY()));
         int maxX = (int)Math.round(Math.max(Math.max(p.a.getX(), p.b.getX()), p.c.getX()));
         int maxY = (int)Math.round(Math.max(Math.max(p.a.getY(), p.b.getY()), p.c.getY()));
-        //System.out.println("minX: " + minX + ", minY: " + minY + ", maxX: " + maxX + ", maxY: " + maxY);
         
-        for (int i = minY; i < maxY; i++) {
-            for (int j = minX; j < maxX; j++) {
-                Point3D point = new Point3D(j, i, 0);
-                
-                if (proj.contains(point)) {
-                    
-                    Point3D barycentric = proj.barycentric(point);
-                    double z = barycentric.getX() * p.a.getZ() + barycentric.getY() * p.b.getZ() + barycentric.getZ() * p.c.getZ();
-                    if (normX(j) >= 0 && normX(j) < getWidth() && normY(i) >= 0 && normY(i) < getHeight() && z < zBuffer.get(normY(i) * getWidth() + normX(j))) {
-                        zBuffer.set(normY(i) * getWidth() + normX(j), z);
+        List<List<Boolean>>filteredContourData = new ArrayList<>(maxX - minX + 1);
+        //Gather contour data
+        if (drawContours && cache != null) {
+            //Initialize array
+            for (int i = 0; i < maxX - minX + 1; i++) {
+                filteredContourData.add(new ArrayList<>(maxY - minY + 1));
+                for (int j = 0; j < maxY - minY + 1; j++) {
+                    filteredContourData.get(i).add(false);
+                }
+            }
+            //For each contour level
+            for (int k = 0; k < contours; k++) {
+                List<List<Boolean>> contourData = new ArrayList<>(maxX - minX + 1);
+                for (int i = 0; i < maxX - minX + 1; i++) {
+                    contourData.add(new ArrayList<>(maxY - minY + 1));
+                    for (int j = 0; j < maxY - minY + 1; j++) {
+                        contourData.get(i).add(null);
                     }
-                    else {
-                        continue;
+                }
+                //Map of all points higher/lower then the target
+                int finalK = k;
+                rasterizeTriangle(p, (x, y) -> {
+                    Point3D bary = p.barycentric(new Point3D(x, y, 0));
+                    double val = orig.a.getY() * bary.getX() + orig.b.getY() * bary.getY() + orig.c.getY() * bary.getZ();
+                    //System.out.println(cache.getContourCutoffValueNormalized(i, contours, contourOffset) + "; " + val);
+                    contourData.get(x - minX).set(y - minY, val >= cache.getContourCutoffValueNormalized(finalK, contours, contourOffset));
+                });
+    
+                //Edge detection filter
+                for (int i = 0; i < maxX - minX + 1; i++) {
+                    for (int j = 0; j < maxY - minY + 1; j++) {
+                        
+                        Boolean tc = contourData.get(Math.max(Math.min(i, maxX - minX), 0)).get(Math.max(Math.min(j + 1, maxY - minY), 0));
+            
+                        Boolean cl = contourData.get(Math.max(Math.min(i - 1, maxX - minX), 0)).get(Math.max(Math.min(j, maxY - minY), 0));
+                        Boolean cc = contourData.get(Math.max(Math.min(i, maxX - minX), 0)).get(Math.max(Math.min(j, maxY - minY), 0));
+                        Boolean cr = contourData.get(Math.max(Math.min(i + 1, maxX - minX), 0)).get(Math.max(Math.min(j, maxY - minY), 0));
+                        
+                        Boolean bc = contourData.get(Math.max(Math.min(i, maxX - minX), 0)).get(Math.max(Math.min(j - 1, maxY - minY), 0));
+            
+                        boolean res = (cc != null && cc) && ((tc != null && !tc) || (cl != null && !cl) || (cr != null && !cr) || (bc != null && !bc));
+                        if (res) {
+                            filteredContourData.get(i).set(j, true);
+                        }
                     }
-                    
-                    PointDouble uv = proj.uv(point);
-                    //System.out.println("UV: " + uv.getX() + ":" +uv.getY());
-                    PointDouble uvl = proj.uv(new Point3D(j - 1, i, 0));
-                    PointDouble uvr = proj.uv(new Point3D(j + 1, i, 0));
-                    PointDouble uvt = proj.uv(new Point3D(j, i - 1, 0));
-                    PointDouble uvb = proj.uv(new Point3D(j, i + 1, 0));
-                    
-                    double dudx = ((Math.abs(uv.getX() - uvl.getX()) + Math.abs(uv.getX() - uvr.getX()) + Math.abs(uv.getX() - uvt.getX()) + Math.abs(uv.getX() - uvb.getX())) / 2) * mm.getMipmap(0, 0).getWidth();
-                    double dvdy = ((Math.abs(uv.getY() - uvl.getY()) + Math.abs(uv.getY() - uvr.getY()) + Math.abs(uv.getY() - uvt.getY()) + Math.abs(uv.getY() - uvb.getY())) / 2) * mm.getMipmap(0, 0).getHeight();
-                    double mmU = Math.max(0, (Math.log(dudx) / Math.log(2)) + mipmapBiasU);
-                    double mmV = Math.max(0, (Math.log(dvdy) / Math.log(2)) + mipmapBiasV);
-                    //System.out.println("du/dx: " + dudx + ", dv/dy: " + dvdy + ", mmU: " + mmU + ", mmV: " + mmV);
-                    
-                    Color c = mm.getColor(uv.getX(), 1 - uv.getY(), useMipmap ? mmU : 0, useMipmap ? mmV : 0, filtering);
-                    g.setColor(c);
-                    g.drawRect(normX(j), normY(i), 0, 0);
                 }
             }
         }
+        
+        
+        //System.out.println("minX: " + minX + ", minY: " + minY + ", maxX: " + maxX + ", maxY: " + maxY);
+        //g.setColor(Color.CYAN);
+        //rasterizeTriangle(p, (x, y) -> g.drawRect(normX(x), normY(y), 0, 0));
+        //for (int i = minY; i < maxY; i++) {
+            //for (int j = minX; j < maxX; j++) {
+        rasterizeTriangle(p, (j, i) -> {
+            
+            Point3D point = new Point3D(j, i, 0);
+    
+            Point3D barycentric = proj.barycentric(point);
+            double z = barycentric.getX() * p.a.getZ() + barycentric.getY() * p.b.getZ() + barycentric.getZ() * p.c.getZ();
+            if (normX(j) >= 0 && normX(j) < getWidth() && normY(i) >= 0 && normY(i) < getHeight() && z < zBuffer.get(normY(i) * getWidth() + normX(j))) {
+                zBuffer.set(normY(i) * getWidth() + normX(j), z);
+            } else {
+                return;
+            }
+    
+            PointDouble uv = proj.uv(point);
+            //System.out.println("UV: " + uv.getX() + ":" +uv.getY());
+            //Offset UVs
+            PointDouble uvl = proj.uv(new Point3D(j - 1, i, 0));
+            PointDouble uvr = proj.uv(new Point3D(j + 1, i, 0));
+            PointDouble uvt = proj.uv(new Point3D(j, i - 1, 0));
+            PointDouble uvb = proj.uv(new Point3D(j, i + 1, 0));
+    
+            //UV derivative
+            double dudx = ((Math.abs(uv.getX() - uvl.getX()) + Math.abs(uv.getX() - uvr.getX()) + Math.abs(uv.getX() - uvt.getX()) + Math.abs(uv.getX() - uvb.getX())) / 2) * mm.getMipmap(0, 0).getWidth();
+            double dvdy = ((Math.abs(uv.getY() - uvl.getY()) + Math.abs(uv.getY() - uvr.getY()) + Math.abs(uv.getY() - uvt.getY()) + Math.abs(uv.getY() - uvb.getY())) / 2) * mm.getMipmap(0, 0).getHeight();
+            double mmU = Math.max(0, (Math.log(dudx) / Math.log(2)) + mipmapBiasU);
+            double mmV = Math.max(0, (Math.log(dvdy) / Math.log(2)) + mipmapBiasV);
+            //System.out.println("du/dx: " + dudx + ", dv/dy: " + dvdy + ", mmU: " + mmU + ", mmV: " + mmV);
+    
+            //Paint pixel
+            Color c;
+            if (drawContours && filteredContourData.get(j - minX).get(i - minY)) {
+                c = contourColor;
+            }
+            else {
+                c = mm.getColor(uv.getX(), 1 - uv.getY(), useMipmap ? mmU : 0, useMipmap ? mmV : 0, filtering);
+            }
+            g.setColor(c);
+            g.drawRect(normX(j), normY(i), 0, 0);
+        });
+            //}
+        //}
+        //g.setColor(Color.CYAN);
+        //rasterizeTriangle(p, (x, y) -> g.drawRect(normX(x), normY(y), 0, 0));
         if (showOutline) {
             g.setColor(MODEL_COLOR);
             g.drawLine(normX(p.a.getX()), normY(p.a.getY()), normX(p.b.getX()), normY(p.b.getY()));
             g.drawLine(normX(p.b.getX()), normY(p.b.getY()), normX(p.c.getX()), normY(p.c.getY()));
             g.drawLine(normX(p.c.getX()), normY(p.c.getY()), normX(p.a.getX()), normY(p.a.getY()));
         }
+        
+    }
+    
+    private void rasterizeBottomFlat(Point3D a, Point3D b, Point3D c, BiConsumer<Integer, Integer> drawFunction) {
+        List<Point3D> points = new ArrayList<>(Arrays.asList(a, b, c));
+        int topI = (a.getY() >= b.getY() && a.getY() >= c.getY()) ? 0 : (b.getY() >= c.getY() ? 1 : 2);
+        Point3D top = points.get(topI);
+        points.remove(topI);
+        
+        int leftI = points.get(0).getX() <= points.get(1).getX() ? 0 : 1;
+        
+        Point3D left = points.get(leftI);
+        points.remove(leftI);
+        Point3D right = points.get(0);
+        
+        double invSlope1 = (Math.round(left.getX()) - Math.round(top.getX())) / (double)(Math.round(left.getY()) - Math.round(top.getY()));
+        double invSlope2 = (Math.round(right.getX()) - Math.round(top.getX())) / (double)(Math.round(right.getY()) - Math.round(top.getY()));
+        
+        double x1 = left.getX();
+        double x2 = right.getX();
+        
+        for (int scanY = (int)Math.round(left.getY()); scanY <= (int)Math.round(top.getY()); scanY++) {
+            for (int i = (int)Math.round(x1); i <= (int)Math.round(x2); i++) {
+                drawFunction.accept((int)Math.round(i), (int)Math.round(scanY));
+            }
+            x1 += invSlope1;
+            x2 += invSlope2;
+        }
+    }
+    
+    private void rasterizeTopFlat(Point3D a, Point3D b, Point3D c, BiConsumer<Integer, Integer> drawFunction) {
+        List<Point3D> points = new ArrayList<>(Arrays.asList(a, b, c));
+        int botI = (a.getY() <= b.getY() && a.getY() <= c.getY()) ? 0 : (b.getY() <= c.getY() ? 1 : 2);
+        Point3D bot = points.get(botI);
+        points.remove(botI);
+        
+        int leftI = points.get(0).getX() <= points.get(1).getX() ? 0 : 1;
+        
+        Point3D left = points.get(leftI);
+        points.remove(leftI);
+        Point3D right = points.get(0);
+    
+        double invSlope1 = (Math.round(left.getX()) - Math.round(bot.getX())) / (double)(Math.round(left.getY()) - Math.round(bot.getY()));
+        double invSlope2 = (Math.round(right.getX()) - Math.round(bot.getX())) / (double)(Math.round(right.getY()) - Math.round(bot.getY()));
+        
+        double x1 = left.getX();
+        double x2 = right.getX();
+        
+        for (int scanY = (int)Math.round(left.getY()); scanY >= (int)Math.round(bot.getY()); scanY--) {
+            for (int i = (int)Math.round(x1); i <= (int)Math.round(x2); i++) {
+                drawFunction.accept((int)Math.round(i), (int)Math.round(scanY));
+            }
+            x1 -= invSlope1;
+            x2 -= invSlope2;
+        }
+    }
+    
+    private void rasterizeTriangle(Polygon poly, BiConsumer<Integer, Integer> drawFunction) {
+        List<Point3D> points = new ArrayList<>(Arrays.asList(poly.a, poly.b, poly.c));
+        points.sort(Comparator.comparingDouble(p -> -p.getY()));
+        
+        if (points.get(1).getY() == points.get(2).getY()) {
+            rasterizeBottomFlat(points.get(0), points.get(1), points.get(2), drawFunction);
+        }
+        
+        if(points.get(0).getY() == points.get(1).getY()) {
+            rasterizeTopFlat(points.get(2), points.get(1), points.get(0), drawFunction);
+        }
+        double alpha = (points.get(1).getY() - points.get(2).getY()) / (points.get(0).getY() - points.get(2).getY());
+        
+        double x = points.get(0).getX() * alpha + points.get(2).getX() * (1 - alpha);
+        double z = points.get(0).getZ() * alpha + points.get(2).getZ() * (1 - alpha);
+        double u = points.get(0).getU() * alpha + points.get(2).getU() * (1 - alpha);
+        double v = points.get(0).getV() * alpha + points.get(2).getV() * (1 - alpha);
+        
+        Point3D d = new Point3D(x, points.get(1).getY(), z, u, v);
+        rasterizeBottomFlat(points.get(0), points.get(1), d, drawFunction);
+        rasterizeTopFlat(points.get(2), points.get(1), d, drawFunction);
     }
     
     private static double interpolate(double a, double b, double alpha) {
@@ -430,6 +587,38 @@ public class ContourPlotDisplay3D extends JPanel {
         this.cache = cache;
     }
     
+    public boolean isDrawContours() {
+        return drawContours;
+    }
+    
+    public void setDrawContours(boolean drawContours) {
+        this.drawContours = drawContours;
+    }
+    
+    public int getContours() {
+        return contours;
+    }
+    
+    public void setContours(int contours) {
+        this.contours = contours;
+    }
+    
+    public double getContourOffset() {
+        return contourOffset;
+    }
+    
+    public void setContourOffset(double contourOffset) {
+        this.contourOffset = contourOffset;
+    }
+    
+    public BufferedImage getImage() {
+        return image;
+    }
+    
+    public void setImage(BufferedImage image) {
+        this.image = image;
+    }
+    
     public static class FunctionCache {
         private BiFunction<Double, Double, Double> function;
         private ArrayList<ArrayList<Double>> data;
@@ -503,7 +692,17 @@ public class ContourPlotDisplay3D extends JPanel {
             return interpolate(b, t, row - (long)row);
         }
         
-        private Model generateModel() {
+        public Double getContourCutoffValue(int index, int totalContours, double offset) {
+            double dz = (max - min) / (double)totalContours;
+            return min + (index + offset + 0.5) * dz;
+        }
+    
+        public Double getContourCutoffValueNormalized(int index, int totalContours, double offset) {
+            double dz = 2 / (double)totalContours;
+            return -1 + (index + offset + 0.5) * dz;
+        }
+        
+        public Model generateModel() {
             int dataPoints = (resolution + 1) * (resolution + 1);
             int rowSize = resolution + 1;
             
@@ -522,7 +721,7 @@ public class ContourPlotDisplay3D extends JPanel {
                     
                     double normX = 2.0 * j / (double)resolution - 1;
                     double normY = 2.0 * i / (double)resolution - 1;
-                    double normZ = 1.0 * (z - min) / (max - min) - 0.5;
+                    double normZ = 2.0 * (z - min) / (max - min) - 1;
                     vertices.add(new Point3D(normX, normZ, normY, j / (double)resolution, i / (double)resolution));
                 }
             }

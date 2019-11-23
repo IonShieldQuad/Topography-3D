@@ -1,12 +1,18 @@
 package core;
 
-import graphics.ContourPlotDisplay3D;
-import graphics.Model;
-import graphics.Transform3D;
-import graphics.Point3D;
+import graphics.*;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
-import java.util.ArrayList;
+import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.table.DefaultTableColumnModel;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableColumn;
+import javax.swing.table.TableColumnModel;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.util.*;
 import java.util.List;
 import java.util.function.BiFunction;
 
@@ -17,7 +23,6 @@ public class MainWindow {
     private JTextField upperX;
     private JButton displayButton;
     private ContourPlotDisplay3D graph;
-    private JComboBox modelSel;
     private JComboBox modeSel;
     private JTextField camOffsetField;
     private JCheckBox xCheckBox;
@@ -33,6 +38,19 @@ public class MainWindow {
     private JTextField scaleYField;
     private JTextField scaleZField;
     private JComboBox angleSel;
+    private JTextField imageNameField;
+    private JButton selectImageButton;
+    private JCheckBox showOutline;
+    private JTable table1;
+    private JTextField rgbTextField;
+    private JButton addColorButton;
+    private JButton removeColorButton;
+    private JCheckBox showContoursCheckBox;
+    private JTextField contoursField;
+    private JTextField resolutionField;
+    private JTextField heightField;
+    private JComboBox comboBox1;
+    private JTextField colorWeightField;
     private JTextField functionField;
     private JTextField lowerY;
     private JTextField upperY;
@@ -49,6 +67,9 @@ public class MainWindow {
     
     private static final String TITLE = "Topography-3D";
     private List<Model> models = new ArrayList<>();
+    BufferedImage image;
+    Map<Integer, Double> tableData = new HashMap<>();
+    ColorMapper.Mode[] modes = new ColorMapper.Mode[]{ColorMapper.Mode.RGB, ColorMapper.Mode.HSV, ColorMapper.Mode.HSL, ColorMapper.Mode.CIE76, ColorMapper.Mode.CIE94, ColorMapper.Mode.CIEDE2000};
     
     private MainWindow() {
         initComponents();
@@ -58,6 +79,54 @@ public class MainWindow {
     
     private void initComponents() {
         displayButton.addActionListener(e -> display());
+        selectImageButton.addActionListener(e -> selectImage());
+    
+        DefaultTableModel model = new DefaultTableModel(0, 3) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        table1.setAutoCreateColumnsFromModel(false);
+        table1.setModel(model);
+        
+        TableColumn column0 = new TableColumn(0, 50, null, null);
+        column0.setIdentifier(0);
+        column0.setHeaderValue("Hex value");
+        
+        TableColumn column1 = new TableColumn(1, 20, new TableCellColorRenderer(), null);
+        column1.setIdentifier(1);
+        column1.setHeaderValue("Color");
+        
+        TableColumn column2 = new TableColumn(2, 20, null, null);
+        column2.setIdentifier(2);
+        column2.setHeaderValue("Height");
+        
+        table1.addColumn(column0);
+        table1.addColumn(column1);
+        table1.addColumn(column2);
+        
+        addColorButton.addActionListener(e -> {
+            try {
+                String input = rgbTextField.getText().trim();
+                if (input.length() != 6) {
+                    throw new NumberFormatException();
+                }
+                int val = Integer.parseInt(input, 16);
+                double height = Double.parseDouble(heightField.getText());
+                tableData.put(val, height);
+                updateTable();
+            } catch (NumberFormatException ex) {
+                log.append("\nColor format error");
+            }
+        });
+        removeColorButton.addActionListener(e -> {
+            int row = table1.getSelectedRow();
+            if (tableData.size() > 0 && row >= 0) {
+                tableData.remove(Integer.parseInt(table1.getModel().getValueAt(row, 0).toString(), 16));
+                updateTable();
+            }
+        });
     }
     
     private void display() {
@@ -77,13 +146,35 @@ public class MainWindow {
             double scaleZ = Double.parseDouble(scaleZField.getText());
             Transform3D transform = new Transform3D(new Point3D(offX, offY, offZ), new Point3D(Math.toRadians(rotX), Math.toRadians(rotY), Math.toRadians(rotZ)), new Point3D(scaleX, scaleY, scaleZ));
             
+            int resolution = Integer.parseInt(resolutionField.getText());
+            int contours = Integer.parseInt(contoursField.getText());
+            double distancePower = Double.parseDouble(colorWeightField.getText());
+            
+            if (image == null) {
+                log.append("\nNo image selected");
+                return;
+            }
+            graph.setImage(image);
             //graph.getModels().put(models.get(modelSel.getSelectedIndex()), transform);
-            BiFunction<Double, Double, Double> f = (x, z) -> -((1/5.0) * Math.sin(x) * Math.cos(z) - (3/2.0) * Math.cos(7 * (Math.pow(x - Math.PI, 2) + Math.pow(z - Math.PI, 2))/4) * Math.exp(-(Math.pow(x - Math.PI, 2) + Math.pow(z - Math.PI, 2))));
-            ContourPlotDisplay3D.FunctionCache cache = new ContourPlotDisplay3D.FunctionCache(f, 20, 0, 6.283, 0, 6.283);
+            //BiFunction<Double, Double, Double> f = (x, z) -> -((1/5.0) * Math.sin(x) * Math.cos(z) - (3/2.0) * Math.cos(7 * (Math.pow(x - Math.PI, 2) + Math.pow(z - Math.PI, 2))/4) * Math.exp(-(Math.pow(x - Math.PI, 2) + Math.pow(z - Math.PI, 2))));
+            ColorMapper colorMapper = new ColorMapper(modes[modeSel.getSelectedIndex()], distancePower);
+    
+            Map<Color, Double> colorData = new HashMap<>();
+            for (int i : tableData.keySet()) {
+                colorData.put(new Color(i), tableData.get(i));
+            }
+            
+            BiFunction<Double, Double, Double> f = colorMapper.mapColors(image, colorData);
+            
+            ContourPlotDisplay3D.FunctionCache cache = new ContourPlotDisplay3D.FunctionCache(f, resolution, 0, 1, 0, 1);
+            
             graph.getModels().put(cache.getModel(), transform);
             graph.setCache(cache);
+            graph.setDrawContours(showContoursCheckBox.isSelected());
+            graph.setContours(contours);
             
             graph.setParallelMode(modeSel.getSelectedIndex() == 0);
+            graph.setShowOutline(showOutline.isSelected());
             
             if (modeSel.getSelectedIndex() != 0) {
                 graph.setAngleA(0);
@@ -103,7 +194,7 @@ public class MainWindow {
                 }
             }
             
-            graph.repaint();
+            updateGraph();
         }
         catch (NumberFormatException e) {
             log.append("Invalid format!\n");
@@ -116,8 +207,50 @@ public class MainWindow {
         graph.repaint();
     }
     
+    private void selectImage() {
+        JFileChooser chooser = new JFileChooser();
+        FileNameExtensionFilter filter = new FileNameExtensionFilter(
+                "JPG & GIF & PNG Images", "jpg", "gif", "png");
+        chooser.setFileFilter(filter);
+        int returnVal = chooser.showOpenDialog(rootPanel);
+        if (returnVal == JFileChooser.APPROVE_OPTION) {
+            try {
+                BufferedImage img = ImageIO.read(chooser.getSelectedFile());
+                imageNameField.setText(chooser.getSelectedFile().getName());
+                image = img;
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+    
+    public void addRow() {
+        DefaultTableModel model = (DefaultTableModel)table1.getModel();
+        model.addRow(new Object[]{"", 0});
+        updateTable();
+    }
+    
+    public void updateTable() {
+        DefaultTableModel model = (DefaultTableModel)table1.getModel();
+        for (int i = model.getRowCount() - 1; i >= 0; i--) {
+            model.removeRow(i);
+        }
+        Set<Integer> keys = tableData.keySet();
+        for (Integer key : keys) {
+            StringBuilder str = new StringBuilder(Integer.toString(key, 16));
+            while (str.length() < 6) {
+                str.insert(0, "0");
+            }
+            model.addRow(new Object[]{str.toString(), key, tableData.get(key)});
+        }
+    }
     
     public static void main(String[] args) {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | UnsupportedLookAndFeelException e) {
+            e.printStackTrace();
+        }
         JFrame frame = new JFrame(TITLE);
         MainWindow gui = new MainWindow();
         frame.setContentPane(gui.rootPanel);
