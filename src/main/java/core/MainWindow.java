@@ -49,8 +49,11 @@ public class MainWindow {
     private JTextField contoursField;
     private JTextField resolutionField;
     private JTextField heightField;
-    private JComboBox comboBox1;
+    private JComboBox colorModeSel;
     private JTextField colorWeightField;
+    private JTextField gammaField;
+    private JCheckBox brightContoursCheckBox;
+    private JCheckBox useMipmapsCheckBox;
     private JTextField functionField;
     private JTextField lowerY;
     private JTextField upperY;
@@ -149,6 +152,7 @@ public class MainWindow {
             int resolution = Integer.parseInt(resolutionField.getText());
             int contours = Integer.parseInt(contoursField.getText());
             double distancePower = Double.parseDouble(colorWeightField.getText());
+            double gamma = Double.parseDouble(gammaField.getText());
             
             if (image == null) {
                 log.append("\nNo image selected");
@@ -157,7 +161,9 @@ public class MainWindow {
             graph.setImage(image);
             //graph.getModels().put(models.get(modelSel.getSelectedIndex()), transform);
             //BiFunction<Double, Double, Double> f = (x, z) -> -((1/5.0) * Math.sin(x) * Math.cos(z) - (3/2.0) * Math.cos(7 * (Math.pow(x - Math.PI, 2) + Math.pow(z - Math.PI, 2))/4) * Math.exp(-(Math.pow(x - Math.PI, 2) + Math.pow(z - Math.PI, 2))));
-            ColorMapper colorMapper = new ColorMapper(modes[modeSel.getSelectedIndex()], distancePower);
+            ColorMapper colorMapper = new ColorMapper(modes[colorModeSel.getSelectedIndex()], distancePower);
+            
+            colorMapper.setGamma(gamma);
     
             Map<Color, Double> colorData = new HashMap<>();
             for (int i : tableData.keySet()) {
@@ -166,12 +172,14 @@ public class MainWindow {
             
             BiFunction<Double, Double, Double> f = colorMapper.mapColors(image, colorData);
             
-            ContourPlotDisplay3D.FunctionCache cache = new ContourPlotDisplay3D.FunctionCache(f, resolution, 0, 1, 0, 1);
+            ContourPlotDisplay3D.FunctionCache cache = new ContourPlotDisplay3D.FunctionCache((x, y) -> f.apply(x, 1 - y), resolution, 0, 1, 0, 1);
             
             graph.getModels().put(cache.getModel(), transform);
             graph.setCache(cache);
             graph.setDrawContours(showContoursCheckBox.isSelected());
             graph.setContours(contours);
+            graph.setContourColor(brightContoursCheckBox.isSelected() ? Color.WHITE : Color.BLACK);
+            graph.setUseMipmap(useMipmapsCheckBox.isSelected());
             
             graph.setParallelMode(modeSel.getSelectedIndex() == 0);
             graph.setShowOutline(showOutline.isSelected());

@@ -81,17 +81,18 @@ public class ContourPlotDisplay3D extends JPanel {
                 pixelVector[i] = interpolate(interpolate(Color.BLUE, Color.RED, (i % 20) / 20.0), interpolate(Color.CYAN, Color.ORANGE, (i % 20) / 20.0), (i - i % 20) / 400.0).getRGB();
                 r.setDataElements(0, 0, 20, 20, pixelVector);
             }
+            mipmapper = new Mipmapper(texture);
         }
         else {
             if (image == null) {
                 TextureGenerator texGen = new TextureGenerator(cache, textureResolution, textureResolution);
                 texture = texGen.generateTexture();
+                mipmapper = new Mipmapper(texture);
             }
             else {
                 texture = image;
             }
         }
-        mipmapper = new Mipmapper(texture);
         
         //Draw polygons
         for (Polygon polygon : model.getPolygons()) {
@@ -379,7 +380,12 @@ public class ContourPlotDisplay3D extends JPanel {
                 c = contourColor;
             }
             else {
-                c = mm.getColor(uv.getX(), 1 - uv.getY(), useMipmap ? mmU : 0, useMipmap ? mmV : 0, filtering);
+                if (useMipmap) {
+                    c = mm.getColor(uv.getX(), 1 - uv.getY(), useMipmap ? mmU : 0, useMipmap ? mmV : 0, filtering);
+                }
+                else {
+                    c = TextureUtils.getColor(image, uv.getX(), 1 - uv.getY());
+                }
             }
             g.setColor(c);
             g.drawRect(normX(j), normY(i), 0, 0);
@@ -611,12 +617,23 @@ public class ContourPlotDisplay3D extends JPanel {
         this.contourOffset = contourOffset;
     }
     
+    public Color getContourColor() {
+        return contourColor;
+    }
+    
+    public void setContourColor(Color contourColor) {
+        this.contourColor = contourColor;
+    }
+    
     public BufferedImage getImage() {
         return image;
     }
     
     public void setImage(BufferedImage image) {
-        this.image = image;
+        if (!Objects.equals(this.image, image)) {
+            this.image = image;
+            mipmapper = new Mipmapper(image);
+        }
     }
     
     public static class FunctionCache {
