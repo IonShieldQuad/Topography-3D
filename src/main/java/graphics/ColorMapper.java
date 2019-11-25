@@ -64,7 +64,7 @@ public class ColorMapper {
     
                 double dh = Math.min(Math.abs(hsv1.h - hsv0.h), 360 - Math.abs(hsv1.h - hsv0.h)) / 180.0;
                 double ds = Math.abs(hsv1.s - hsv0.s);
-                double dv = Math.abs(hsv1.v - hsv1.v) / 255.0;
+                double dv = Math.abs(hsv1.v - hsv0.v) / 255.0;
     
                 return Math.sqrt(dh * dh + ds * ds + dv * dv);
             }
@@ -75,9 +75,9 @@ public class ColorMapper {
     
                 double dh = Math.min(Math.abs(hsl1.h - hsl0.h), 360 - Math.abs(hsl1.h - hsl0.h)) / 180.0;
                 double ds = Math.abs(hsl1.s - hsl0.s);
-                double dv = Math.abs(hsl1.l - hsl1.l);
+                double dl = Math.abs(hsl1.l - hsl0.l);
     
-                return Math.sqrt(dh * dh + ds * ds + dv * dv);
+                return Math.sqrt(dh * dh + ds * ds + dl * dl);
             }
             
             case CIE76: {
