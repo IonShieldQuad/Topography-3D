@@ -722,6 +722,7 @@ public class ContourPlotDisplay3D extends JPanel {
         public Model generateModel() {
             int dataPoints = (resolution + 1) * (resolution + 1);
             int rowSize = resolution + 1;
+            int oddRowSize = resolution + 2;
             
             ArrayList<Point3D> vertices = new ArrayList<>(dataPoints);
             ArrayList<Pair<Integer, Integer>> edges = new ArrayList<>(2 * dataPoints);
@@ -731,35 +732,69 @@ public class ContourPlotDisplay3D extends JPanel {
             
             //Add vertices
             for (int i = 0; i <= resolution; i++) {
-                for (int j = 0; j <= resolution; j++) {
-                    double x = lowerX + deltaX * j;
+                for (int j = 0; j <= resolution + (i % 2 == 0 ? 0 : 1); j++) {
+                    double j1 = Math.min(Math.max(i % 2 == 0 ? j : j - 0.5, 0.0), resolution);
+                    double x = lowerX + deltaX * j1;
                     double y = lowerY + deltaY * i;
                     double z = get(x, y);
                     
-                    double normX = 2.0 * j / (double)resolution - 1;
-                    double normY = 2.0 * i / (double)resolution - 1;
+                    double normX = 2.0 * j1 / (double) resolution - 1;
+                    double normY = 2.0 * i / (double) resolution - 1;
                     double normZ = 2.0 * (z - min) / (max - min) - 1;
-                    vertices.add(new Point3D(normX, normZ, normY, j / (double)resolution, i / (double)resolution));
+                    vertices.add(new Point3D(normX, normZ, normY, j1 / (double) resolution, i / (double) resolution));
                 }
             }
     
             //Add edges
             for (int i = 0; i <= resolution; i++) {
-                for (int j = 0; j <= resolution; j++) {
-                    int index = i * (rowSize) + j;
-                    if (j < resolution) {
-                        edges.add(new Pair<>(index, index + 1));
-                    }
-                    if (i < resolution) {
-                        edges.add(new Pair<>(index, index + rowSize));
-                        if (j < resolution) {
-                            edges.add(new Pair<>(index, index + rowSize + 1));
-                            //Add polygons
-                            polygons.add(new Polygon(vertices.get(index), vertices.get(index + rowSize), vertices.get(index + rowSize + 1)));
-                            polygons.add(new Polygon(vertices.get(index + rowSize + 1), vertices.get(index + 1), vertices.get(index)));
+                for (int j = 0; j < (i % 2 == 0 ? rowSize : oddRowSize); j++) {
+                    int index = ((i + 1) / 2) * (rowSize) + (i / 2) * oddRowSize + j;
+                    //int index = i * (rowSize + 1) + j;
+                    if (i % 2 == 0) {
+                        if (j < rowSize - 1) {
+                            edges.add(new Pair<>(index, index + 1));
+                        }
+                        if (i < resolution) {
+                            edges.add(new Pair<>(index, index + oddRowSize - 1));
+                            edges.add(new Pair<>(index, index + oddRowSize));
+                            if (j < rowSize - 1) {
+                                
+                                //Add polygons
+                                polygons.add(new Polygon(vertices.get(index), vertices.get(index + rowSize), vertices.get(index + rowSize + 1)));
+                                polygons.add(new Polygon(vertices.get(index + rowSize + 1), vertices.get(index + 1), vertices.get(index)));
+                            }
+                            else {
+                                if (j == rowSize - 1) {
+                                    polygons.add(new Polygon(vertices.get(index), vertices.get(index + rowSize), vertices.get(index + rowSize + 1)));
+                                }
+                            }
                         }
                     }
-                    
+                    else {
+                        if (j < oddRowSize - 1) {
+                            edges.add(new Pair<>(index, index + 1));
+                        }
+                        if (i < resolution) {
+                            if (j > 0) {
+                                edges.add(new Pair<>(index, index + oddRowSize - 1));
+                            }
+                            if (j < oddRowSize - 1) {
+                                edges.add(new Pair<>(index, index + oddRowSize));
+                                if (j == 0) {
+                                    polygons.add(new Polygon(vertices.get(index), vertices.get(index + oddRowSize), vertices.get(index + 1)));
+                                }
+                                else {
+                                    //Add polygons
+                                    polygons.add(new Polygon(vertices.get(index), vertices.get(index + oddRowSize - 1), vertices.get(index + oddRowSize)));
+                                    polygons.add(new Polygon(vertices.get(index), vertices.get(index + oddRowSize), vertices.get(index + 1)));
+                                }
+                            } else {
+                                if (j == oddRowSize - 1) {
+                                    edges.add(new Pair<>(index, index + rowSize));
+                                }
+                            }
+                        }
+                    }
                     
                 }
             }
