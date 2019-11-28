@@ -493,8 +493,8 @@ public class ContourPlotDisplay3D extends JPanel {
         int r = (int) Math.round(255 * Math.pow(Math.pow(c2.getRed() / 255.0, gamma) * alpha + Math.pow(c1.getRed() / 255.0, gamma) * (1 - alpha), 1 / gamma));
         int g = (int) Math.round(255 * Math.pow(Math.pow(c2.getGreen() / 255.0, gamma) * alpha + Math.pow(c1.getGreen() / 255.0, gamma) * (1 - alpha), 1 / gamma));
         int b = (int) Math.round(255 * Math.pow(Math.pow(c2.getBlue() / 255.0, gamma) * alpha + Math.pow(c1.getBlue() / 255.0, gamma) * (1 - alpha), 1 / gamma));
-        
-        return new Color(r, g, b);
+        int a = (int) Math.round(c2.getAlpha() * alpha + c1.getAlpha() * (1 - alpha));
+        return new Color(r, g, b, a);
     }
     
     
