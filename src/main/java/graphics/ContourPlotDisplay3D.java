@@ -8,6 +8,10 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.WritableRaster;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 
@@ -16,6 +20,7 @@ public class ContourPlotDisplay3D extends JPanel {
     private static final Color MODEL_COLOR = new Color(0xff5599);
     
     private static final Model AXIS = Model.axis(10000);
+    private static final int THREADS_MAX = 8;
     
     private Map<Model, Transform3D> models = new HashMap<>();
     
@@ -47,7 +52,7 @@ public class ContourPlotDisplay3D extends JPanel {
     private double contourOffset = 0;
     private Color contourColor = Color.BLACK;
     
-    private BufferedImage image;
+    private Mipmapper image;
     
     public ContourPlotDisplay3D() {
         super();
@@ -58,7 +63,7 @@ public class ContourPlotDisplay3D extends JPanel {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         
-        List<Double> zBuffer = new ArrayList<>();
+        List<Double> zBuffer = Collections.synchronizedList(new ArrayList<>());
         for (int i = 0; i < getWidth() * getHeight(); i++) {
             zBuffer.add(Double.POSITIVE_INFINITY);
         }
@@ -90,118 +95,95 @@ public class ContourPlotDisplay3D extends JPanel {
                 mipmapper = new Mipmapper(texture);
             }
             else {
-                texture = image;
+                mipmapper = image;
             }
         }
         
         //Draw polygons
+        ExecutorService executor = Executors.newFixedThreadPool(THREADS_MAX);
         for (Polygon polygon : model.getPolygons()) {
-            try {
-                Point3D a = polygon.a.copy();
-                Point3D b = polygon.b.copy();
-                Point3D c = polygon.c.copy();
-                
-                Matrix am = a.toMatrix();
-                Matrix bm = b.toMatrix();
-                Matrix cm = c.toMatrix();
-                
-                Matrix scaleMatrix = Matrix.scaleMatrix3D(transform.scale.getX(), transform.scale.getY(), transform.scale.getZ());
-                Matrix rotationMatrix = Matrix.rotationMatrix3D(transform.rotation.getX(), transform.rotation.getY(), transform.rotation.getZ());
-                Matrix offsetMatrix = Matrix.offsetMatrix3D(transform.offset.getX(), transform.offset.getY(), transform.offset.getZ());
-                
-                am = am.multiply(scaleMatrix);
-                bm = bm.multiply(scaleMatrix);
-                cm = cm.multiply(scaleMatrix);
-    
-                am = am.multiply(rotationMatrix);
-                bm = bm.multiply(rotationMatrix);
-                cm = cm.multiply(rotationMatrix);
-    
-                am = am.multiply(offsetMatrix);
-                bm = bm.multiply(offsetMatrix);
-                cm = cm.multiply(offsetMatrix);
-                
-                a.setX(am.get(0, 0));
-                a.setY(am.get(1, 0));
-                a.setZ(am.get(2, 0));
-    
-                b.setX(bm.get(0, 0));
-                b.setY(bm.get(1, 0));
-                b.setZ(bm.get(2, 0));
-    
-                c.setX(cm.get(0, 0));
-                c.setY(cm.get(1, 0));
-                c.setZ(cm.get(2, 0));
-                
-                if (isParallelMode()) {
-                    double l = getFactorL();
-                    double angle = getAngleA();
-                    double x;
-                    double y;
-                    
-                    x = a.getX() + a.getZ() * (l * Math.cos(angle));
-                    y = a.getY() + a.getZ() * (l * Math.sin(angle));
-                    
-                    a.setX(x);
-                    a.setY(y);
-    
-                    x = b.getX() + b.getZ() * (l * Math.cos(angle));
-                    y = b.getY() + b.getZ() * (l * Math.sin(angle));
-    
-                    b.setX(x);
-                    b.setY(y);
-    
-                    x = c.getX() + c.getZ() * (l * Math.cos(angle));
-                    y = c.getY() + c.getZ() * (l * Math.sin(angle));
-    
-                    c.setX(x);
-                    c.setY(y);
-                }
-                else {
-                    if (warp) {
-                        double d = getFactorD();
+            executor.execute(() -> {
+                try {
+                    Polygon polygonT = polygon.applyTransform(transform);
+                    Point3D a = polygonT.a.copy();
+                    Point3D b = polygonT.b.copy();
+                    Point3D c = polygonT.c.copy();
+        
+                    if (isParallelMode()) {
+                        double l = getFactorL();
+                        double angle = getAngleA();
                         double x;
                         double y;
-    
-                        x = a.getX() / (1 + (Math.abs(a.getX()) * (isWarpX() ? 1 : 0) / d) + (Math.abs(a.getY()) * (isWarpY() ? 1 : 0) / d) + ((a.getZ()) * (isWarpZ() ? 1 : 0) / d));
-                        y = a.getY() / (1 + (Math.abs(a.getX()) * (isWarpX() ? 1 : 0) / d) + (Math.abs(a.getY()) * (isWarpY() ? 1 : 0) / d) + ((a.getZ()) * (isWarpZ() ? 1 : 0) / d));
-    
+            
+                        x = a.getX() + a.getZ() * (l * Math.cos(angle));
+                        y = a.getY() + a.getZ() * (l * Math.sin(angle));
+            
                         a.setX(x);
                         a.setY(y);
-    
-                        x = b.getX() / (1 + (Math.abs(b.getX()) * (isWarpX() ? 1 : 0) / d) + (Math.abs(b.getY()) * (isWarpY() ? 1 : 0) / d) + ((b.getZ()) * (isWarpZ() ? 1 : 0) / d));
-                        y = b.getY() / (1 + (Math.abs(b.getX()) * (isWarpX() ? 1 : 0) / d) + (Math.abs(b.getY()) * (isWarpY() ? 1 : 0) / d) + ((b.getZ()) * (isWarpZ() ? 1 : 0) / d));
-    
+            
+                        x = b.getX() + b.getZ() * (l * Math.cos(angle));
+                        y = b.getY() + b.getZ() * (l * Math.sin(angle));
+            
                         b.setX(x);
                         b.setY(y);
-    
-                        x = c.getX() / (1 + (Math.abs(c.getX()) * (isWarpX() ? 1 : 0) / d) + (Math.abs(c.getY()) * (isWarpY() ? 1 : 0) / d) + ((c.getZ()) * (isWarpZ() ? 1 : 0) / d));
-                        y = c.getY() / (1 + (Math.abs(c.getX()) * (isWarpX() ? 1 : 0) / d) + (Math.abs(c.getY()) * (isWarpY() ? 1 : 0) / d) + ((c.getZ()) * (isWarpZ() ? 1 : 0) / d));
-    
+            
+                        x = c.getX() + c.getZ() * (l * Math.cos(angle));
+                        y = c.getY() + c.getZ() * (l * Math.sin(angle));
+            
                         c.setX(x);
                         c.setY(y);
+                    } else {
+                        if (warp) {
+                            double d = getFactorD();
+                            double x;
+                            double y;
+                
+                            x = a.getX() / (1 + (Math.abs(a.getX()) * (isWarpX() ? 1 : 0) / d) + (Math.abs(a.getY()) * (isWarpY() ? 1 : 0) / d) + ((a.getZ()) * (isWarpZ() ? 1 : 0) / d));
+                            y = a.getY() / (1 + (Math.abs(a.getX()) * (isWarpX() ? 1 : 0) / d) + (Math.abs(a.getY()) * (isWarpY() ? 1 : 0) / d) + ((a.getZ()) * (isWarpZ() ? 1 : 0) / d));
+                
+                            a.setX(x);
+                            a.setY(y);
+                
+                            x = b.getX() / (1 + (Math.abs(b.getX()) * (isWarpX() ? 1 : 0) / d) + (Math.abs(b.getY()) * (isWarpY() ? 1 : 0) / d) + ((b.getZ()) * (isWarpZ() ? 1 : 0) / d));
+                            y = b.getY() / (1 + (Math.abs(b.getX()) * (isWarpX() ? 1 : 0) / d) + (Math.abs(b.getY()) * (isWarpY() ? 1 : 0) / d) + ((b.getZ()) * (isWarpZ() ? 1 : 0) / d));
+                
+                            b.setX(x);
+                            b.setY(y);
+                
+                            x = c.getX() / (1 + (Math.abs(c.getX()) * (isWarpX() ? 1 : 0) / d) + (Math.abs(c.getY()) * (isWarpY() ? 1 : 0) / d) + ((c.getZ()) * (isWarpZ() ? 1 : 0) / d));
+                            y = c.getY() / (1 + (Math.abs(c.getX()) * (isWarpX() ? 1 : 0) / d) + (Math.abs(c.getY()) * (isWarpY() ? 1 : 0) / d) + ((c.getZ()) * (isWarpZ() ? 1 : 0) / d));
+                
+                            c.setX(x);
+                            c.setY(y);
+                        }
                     }
+        
+                    Polygon transformedPolygon = new Polygon(a, b, c);
+        
+                    drawPolygon(g, transformedPolygon, polygon, mipmapper, zBuffer);
+        
+                    if (showOutline) {
+                        synchronized (g) {
+                            g.setColor(color);
+                            g.drawLine(normX(a.getX()), normY(a.getY()), normX(b.getX()), normY(b.getY()));
+                            g.drawLine(normX(b.getX()), normY(b.getY()), normX(c.getX()), normY(c.getY()));
+                            g.drawLine(normX(c.getX()), normY(c.getY()), normX(a.getX()), normY(a.getY()));
+                        }
+                    }
+        
+                    //g.setColor(color);
+                    //g.drawLine(normX(a.getX()), normY(a.getY()), normX(b.getX()), normY(b.getY()));
+                } catch (ArrayIndexOutOfBoundsException e) {
+                    e.printStackTrace();
                 }
-                
-                Polygon transformedPolygon = new Polygon(a, b, c);
-                
-                drawPolygon(g, transformedPolygon, polygon, mipmapper, zBuffer);
-                
-                if (showOutline) {
-                    g.setColor(color);
-                    g.drawLine(normX(a.getX()), normY(a.getY()), normX(b.getX()), normY(b.getY()));
-                    g.drawLine(normX(b.getX()), normY(b.getY()), normX(c.getX()), normY(c.getY()));
-                    g.drawLine(normX(c.getX()), normY(c.getY()), normX(a.getX()), normY(a.getY()));
-                }
-                
-                //g.setColor(color);
-                //g.drawLine(normX(a.getX()), normY(a.getY()), normX(b.getX()), normY(b.getY()));
-            }
-            catch (ArrayIndexOutOfBoundsException e) {
-                e.printStackTrace();
-            }
+            });
         }
-    
+        executor.shutdown();
+        try {
+            executor.awaitTermination(60, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         //Draw edges
         /*for (Pair<Integer, Integer> edge : model.getEdges()) {
             try {
@@ -281,126 +263,128 @@ public class ContourPlotDisplay3D extends JPanel {
     }
     
     private void drawPolygon(Graphics g, Polygon p, Polygon orig, Mipmapper mm, List<Double> zBuffer) {
-        //System.out.println("Polygon: " + p.a + p.b + p.c);
-        Polygon proj = new Polygon(p.a.copy(), p.b.copy(), p.c.copy());
-        proj.a.setZ(0);
-        proj.b.setZ(0);
-        proj.c.setZ(0);
-        
-        int minX = (int)Math.round(Math.min(Math.min(p.a.getX(), p.b.getX()), p.c.getX()));
-        int minY = (int)Math.round(Math.min(Math.min(p.a.getY(), p.b.getY()), p.c.getY()));
-        int maxX = (int)Math.round(Math.max(Math.max(p.a.getX(), p.b.getX()), p.c.getX()));
-        int maxY = (int)Math.round(Math.max(Math.max(p.a.getY(), p.b.getY()), p.c.getY()));
-        
-        List<List<Boolean>>filteredContourData = new ArrayList<>(maxX - minX + 1);
-        //Gather contour data
-        if (drawContours && cache != null) {
-            //Initialize array
-            for (int i = 0; i < maxX - minX + 1; i++) {
-                filteredContourData.add(new ArrayList<>(maxY - minY + 1));
-                for (int j = 0; j < maxY - minY + 1; j++) {
-                    filteredContourData.get(i).add(false);
-                }
-            }
-            //For each contour level
-            for (int k = 0; k < contours; k++) {
-                List<List<Boolean>> contourData = new ArrayList<>(maxX - minX + 1);
-                for (int i = 0; i < maxX - minX + 1; i++) {
-                    contourData.add(new ArrayList<>(maxY - minY + 1));
-                    for (int j = 0; j < maxY - minY + 1; j++) {
-                        contourData.get(i).add(null);
-                    }
-                }
-                //Map of all points higher/lower then the target
-                int finalK = k;
-                rasterizeTriangle(p, (x, y) -> {
-                    Point3D bary = p.barycentric(new Point3D(x, y, 0));
-                    double val = orig.a.getY() * bary.getX() + orig.b.getY() * bary.getY() + orig.c.getY() * bary.getZ();
-                    //System.out.println(cache.getContourCutoffValueNormalized(i, contours, contourOffset) + "; " + val);
-                    contourData.get(x - minX).set(y - minY, val >= cache.getContourCutoffValueNormalized(finalK, contours, contourOffset));
-                });
+        synchronized (p) {
+            if ((normX(p.a.getX()) >= 0 && normX(p.a.getX()) < getWidth() && normY(p.a.getY()) >= 0 && normY(p.a.getY()) < getHeight()) || (normX(p.b.getX()) >= 0 && normX(p.b.getX()) < getWidth() && normY(p.b.getY()) >= 0 && normY(p.b.getY()) < getHeight()) || (normX(p.c.getX()) >= 0 && normX(p.c.getX()) < getWidth() && normY(p.c.getY()) >= 0 && normY(p.c.getY()) < getHeight())) {
     
-                //Edge detection filter
-                for (int i = 0; i < maxX - minX + 1; i++) {
-                    for (int j = 0; j < maxY - minY + 1; j++) {
-                        
-                        Boolean tc = contourData.get(Math.max(Math.min(i, maxX - minX), 0)).get(Math.max(Math.min(j + 1, maxY - minY), 0));
+                //System.out.println("Polygon: " + p.a + p.b + p.c);
+                Polygon proj = new Polygon(p.a.copy(), p.b.copy(), p.c.copy());
+                proj.a.setZ(0);
+                proj.b.setZ(0);
+                proj.c.setZ(0);
+    
+                int minX = (int) Math.round(Math.min(Math.min(p.a.getX(), p.b.getX()), p.c.getX()));
+                int minY = (int) Math.round(Math.min(Math.min(p.a.getY(), p.b.getY()), p.c.getY()));
+                int maxX = (int) Math.round(Math.max(Math.max(p.a.getX(), p.b.getX()), p.c.getX()));
+                int maxY = (int) Math.round(Math.max(Math.max(p.a.getY(), p.b.getY()), p.c.getY()));
+    
+                List<List<Boolean>> filteredContourData = new ArrayList<>(maxX - minX + 1);
+                //Gather contour data
+                if (drawContours && cache != null) {
+                    //Initialize array
+                    for (int i = 0; i < maxX - minX + 1; i++) {
+                        filteredContourData.add(new ArrayList<>(maxY - minY + 1));
+                        for (int j = 0; j < maxY - minY + 1; j++) {
+                            filteredContourData.get(i).add(false);
+                        }
+                    }
+                    //For each contour level
+                    for (int k = 0; k < contours; k++) {
+                        List<List<Boolean>> contourData = new ArrayList<>(maxX - minX + 1);
+                        for (int i = 0; i < maxX - minX + 1; i++) {
+                            contourData.add(new ArrayList<>(maxY - minY + 1));
+                            for (int j = 0; j < maxY - minY + 1; j++) {
+                                contourData.get(i).add(null);
+                            }
+                        }
+                        //Map of all points higher/lower then the target
+                        int finalK = k;
+                        rasterizeTriangle(p, (x, y) -> {
+                            Point3D bary = p.barycentric(new Point3D(x, y, 0));
+                            double val = orig.a.getY() * bary.getX() + orig.b.getY() * bary.getY() + orig.c.getY() * bary.getZ();
+                            //System.out.println(cache.getContourCutoffValueNormalized(i, contours, contourOffset) + "; " + val);
+                            contourData.get(x - minX).set(y - minY, val >= cache.getContourCutoffValueNormalized(finalK, contours, contourOffset));
+                        });
             
-                        Boolean cl = contourData.get(Math.max(Math.min(i - 1, maxX - minX), 0)).get(Math.max(Math.min(j, maxY - minY), 0));
-                        Boolean cc = contourData.get(Math.max(Math.min(i, maxX - minX), 0)).get(Math.max(Math.min(j, maxY - minY), 0));
-                        Boolean cr = contourData.get(Math.max(Math.min(i + 1, maxX - minX), 0)).get(Math.max(Math.min(j, maxY - minY), 0));
-                        
-                        Boolean bc = contourData.get(Math.max(Math.min(i, maxX - minX), 0)).get(Math.max(Math.min(j - 1, maxY - minY), 0));
-            
-                        boolean res = (cc != null && cc) && ((tc != null && !tc) || (cl != null && !cl) || (cr != null && !cr) || (bc != null && !bc));
-                        if (res) {
-                            filteredContourData.get(i).set(j, true);
+                        //Edge detection filter
+                        for (int i = 0; i < maxX - minX + 1; i++) {
+                            for (int j = 0; j < maxY - minY + 1; j++) {
+                    
+                                Boolean tc = contourData.get(Math.max(Math.min(i, maxX - minX), 0)).get(Math.max(Math.min(j + 1, maxY - minY), 0));
+                    
+                                Boolean cl = contourData.get(Math.max(Math.min(i - 1, maxX - minX), 0)).get(Math.max(Math.min(j, maxY - minY), 0));
+                                Boolean cc = contourData.get(Math.max(Math.min(i, maxX - minX), 0)).get(Math.max(Math.min(j, maxY - minY), 0));
+                                Boolean cr = contourData.get(Math.max(Math.min(i + 1, maxX - minX), 0)).get(Math.max(Math.min(j, maxY - minY), 0));
+                    
+                                Boolean bc = contourData.get(Math.max(Math.min(i, maxX - minX), 0)).get(Math.max(Math.min(j - 1, maxY - minY), 0));
+                    
+                                boolean res = (cc != null && cc) && ((tc != null && !tc) || (cl != null && !cl) || (cr != null && !cr) || (bc != null && !bc));
+                                if (res) {
+                                    filteredContourData.get(i).set(j, true);
+                                }
+                            }
                         }
                     }
                 }
+    
+    
+                //System.out.println("minX: " + minX + ", minY: " + minY + ", maxX: " + maxX + ", maxY: " + maxY);
+                //g.setColor(Color.CYAN);
+                //rasterizeTriangle(p, (x, y) -> g.drawRect(normX(x), normY(y), 0, 0));
+                //for (int i = minY; i < maxY; i++) {
+                //for (int j = minX; j < maxX; j++) {
+                rasterizeTriangle(p, (j, i) -> {
+        
+                    Point3D point = new Point3D(j, i, 0);
+        
+                    Point3D barycentric = proj.barycentric(point);
+                    double z = barycentric.getX() * p.a.getZ() + barycentric.getY() * p.b.getZ() + barycentric.getZ() * p.c.getZ();
+                    synchronized (zBuffer) {
+                        if (normX(j) >= 0 && normX(j) < getWidth() && normY(i) >= 0 && normY(i) < getHeight() && z < zBuffer.get(normY(i) * getWidth() + normX(j))) {
+                            zBuffer.set(normY(i) * getWidth() + normX(j), z);
+                        } else {
+                            return;
+                        }
+                    }
+                    PointDouble uv = proj.uv(point);
+                    //System.out.println("UV: " + uv.getX() + ":" +uv.getY());
+                    //Offset UVs
+                    PointDouble uvl = proj.uv(new Point3D(j - 1, i, 0));
+                    PointDouble uvr = proj.uv(new Point3D(j + 1, i, 0));
+                    PointDouble uvt = proj.uv(new Point3D(j, i - 1, 0));
+                    PointDouble uvb = proj.uv(new Point3D(j, i + 1, 0));
+        
+                    //UV derivative
+                    double dudx = ((Math.abs(uv.getX() - uvl.getX()) + Math.abs(uv.getX() - uvr.getX()) + Math.abs(uv.getX() - uvt.getX()) + Math.abs(uv.getX() - uvb.getX())) / 2) * mm.getMipmap(0, 0).getWidth();
+                    double dvdy = ((Math.abs(uv.getY() - uvl.getY()) + Math.abs(uv.getY() - uvr.getY()) + Math.abs(uv.getY() - uvt.getY()) + Math.abs(uv.getY() - uvb.getY())) / 2) * mm.getMipmap(0, 0).getHeight();
+                    double mmU = Math.max(0, (Math.log(dudx) / Math.log(2)) + mipmapBiasU);
+                    double mmV = Math.max(0, (Math.log(dvdy) / Math.log(2)) + mipmapBiasV);
+                    //System.out.println("du/dx: " + dudx + ", dv/dy: " + dvdy + ", mmU: " + mmU + ", mmV: " + mmV);
+        
+                    //Paint pixel
+                    Color c;
+                    if (drawContours && filteredContourData.get(j - minX).get(i - minY)) {
+                        c = contourColor;
+                    } else {
+                        c = mm.getColor(uv.getX(), 1 - uv.getY(), useMipmap ? mmU : 0, useMipmap ? mmV : 0, filtering);
+                    }
+                    synchronized (g) {
+                        g.setColor(c);
+                        g.drawRect(normX(j), normY(i), 0, 0);
+                    }
+        
+                });
+                //}
+                //}
+                //g.setColor(Color.CYAN);
+                //rasterizeTriangle(p, (x, y) -> g.drawRect(normX(x), normY(y), 0, 0));
+                if (showOutline) {
+                    g.setColor(MODEL_COLOR);
+                    g.drawLine(normX(p.a.getX()), normY(p.a.getY()), normX(p.b.getX()), normY(p.b.getY()));
+                    g.drawLine(normX(p.b.getX()), normY(p.b.getY()), normX(p.c.getX()), normY(p.c.getY()));
+                    g.drawLine(normX(p.c.getX()), normY(p.c.getY()), normX(p.a.getX()), normY(p.a.getY()));
+                }
             }
         }
-        
-        
-        //System.out.println("minX: " + minX + ", minY: " + minY + ", maxX: " + maxX + ", maxY: " + maxY);
-        //g.setColor(Color.CYAN);
-        //rasterizeTriangle(p, (x, y) -> g.drawRect(normX(x), normY(y), 0, 0));
-        //for (int i = minY; i < maxY; i++) {
-            //for (int j = minX; j < maxX; j++) {
-        rasterizeTriangle(p, (j, i) -> {
-            
-            Point3D point = new Point3D(j, i, 0);
-    
-            Point3D barycentric = proj.barycentric(point);
-            double z = barycentric.getX() * p.a.getZ() + barycentric.getY() * p.b.getZ() + barycentric.getZ() * p.c.getZ();
-            if (normX(j) >= 0 && normX(j) < getWidth() && normY(i) >= 0 && normY(i) < getHeight() && z < zBuffer.get(normY(i) * getWidth() + normX(j))) {
-                zBuffer.set(normY(i) * getWidth() + normX(j), z);
-            } else {
-                return;
-            }
-    
-            PointDouble uv = proj.uv(point);
-            //System.out.println("UV: " + uv.getX() + ":" +uv.getY());
-            //Offset UVs
-            PointDouble uvl = proj.uv(new Point3D(j - 1, i, 0));
-            PointDouble uvr = proj.uv(new Point3D(j + 1, i, 0));
-            PointDouble uvt = proj.uv(new Point3D(j, i - 1, 0));
-            PointDouble uvb = proj.uv(new Point3D(j, i + 1, 0));
-    
-            //UV derivative
-            double dudx = ((Math.abs(uv.getX() - uvl.getX()) + Math.abs(uv.getX() - uvr.getX()) + Math.abs(uv.getX() - uvt.getX()) + Math.abs(uv.getX() - uvb.getX())) / 2) * mm.getMipmap(0, 0).getWidth();
-            double dvdy = ((Math.abs(uv.getY() - uvl.getY()) + Math.abs(uv.getY() - uvr.getY()) + Math.abs(uv.getY() - uvt.getY()) + Math.abs(uv.getY() - uvb.getY())) / 2) * mm.getMipmap(0, 0).getHeight();
-            double mmU = Math.max(0, (Math.log(dudx) / Math.log(2)) + mipmapBiasU);
-            double mmV = Math.max(0, (Math.log(dvdy) / Math.log(2)) + mipmapBiasV);
-            //System.out.println("du/dx: " + dudx + ", dv/dy: " + dvdy + ", mmU: " + mmU + ", mmV: " + mmV);
-    
-            //Paint pixel
-            Color c;
-            if (drawContours && filteredContourData.get(j - minX).get(i - minY)) {
-                c = contourColor;
-            }
-            else {
-                if (useMipmap) {
-                    c = mm.getColor(uv.getX(), 1 - uv.getY(), useMipmap ? mmU : 0, useMipmap ? mmV : 0, filtering);
-                }
-                else {
-                    c = TextureUtils.getColor(image, uv.getX(), 1 - uv.getY());
-                }
-            }
-            g.setColor(c);
-            g.drawRect(normX(j), normY(i), 0, 0);
-        });
-            //}
-        //}
-        //g.setColor(Color.CYAN);
-        //rasterizeTriangle(p, (x, y) -> g.drawRect(normX(x), normY(y), 0, 0));
-        if (showOutline) {
-            g.setColor(MODEL_COLOR);
-            g.drawLine(normX(p.a.getX()), normY(p.a.getY()), normX(p.b.getX()), normY(p.b.getY()));
-            g.drawLine(normX(p.b.getX()), normY(p.b.getY()), normX(p.c.getX()), normY(p.c.getY()));
-            g.drawLine(normX(p.c.getX()), normY(p.c.getY()), normX(p.a.getX()), normY(p.a.getY()));
-        }
-        
     }
     
     private void rasterizeBottomFlat(Point3D a, Point3D b, Point3D c, BiConsumer<Integer, Integer> drawFunction) {
@@ -625,14 +609,13 @@ public class ContourPlotDisplay3D extends JPanel {
         this.contourColor = contourColor;
     }
     
-    public BufferedImage getImage() {
+    public Mipmapper getImage() {
         return image;
     }
     
-    public void setImage(BufferedImage image) {
+    public void setImage(Mipmapper image) {
         if (!Objects.equals(this.image, image)) {
             this.image = image;
-            mipmapper = new Mipmapper(image);
         }
     }
     

@@ -9,7 +9,6 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public class ColorMapper {
-    private Mipmapper mm = new Mipmapper();
     
     private Mode mode;
     private double distancePower = 2;
@@ -26,23 +25,23 @@ public class ColorMapper {
         this.mode = mode;
     }
     
-    public BiFunction<Double, Double, Double> mapColors(BufferedImage image, int resolution, Map<Color, Double> colorData) {
-        if (image != null && !Objects.equals(mm.getTexture(), image)) {
-            mm.loadTexture(image);
+    public BiFunction<Double, Double, Double> mapColors(Mipmapper image, int resolution, Map<Color, Double> colorData) {
+        if (image == null) {
+            return null;
         }
         return (inU, inV) -> {
             double u = Math.max(0, Math.min(1, inU));
             double v = Math.max(0, Math.min(1, inV));
     
             Color pointColor;
-            if (image != null && useMipmaps && resolution > 0) {
-                double mmU = Math.log(Math.max(1, image.getWidth() / (double)resolution)) / Math.log(2);
-                double mmV = Math.log(Math.max(1, image.getHeight() / (double)resolution)) / Math.log(2);
+            if (useMipmaps && resolution > 0) {
+                double mmU = Math.log(Math.max(1, image.getTexture().getWidth() / (double)resolution)) / Math.log(2);
+                double mmV = Math.log(Math.max(1, image.getTexture().getHeight() / (double)resolution)) / Math.log(2);
                 
-                pointColor = mm.getColor(u, v, mmU, mmV, TextureUtils.Filtering.ANISOTROPIC);
+                pointColor = image.getColor(u, v, mmU, mmV, TextureUtils.Filtering.ANISOTROPIC);
             }
             else {
-                pointColor = TextureUtils.getColor(image, u, v);
+                pointColor = image.getColor(u, v, 0, 0, TextureUtils.Filtering.BILINEAR);
             }
             
             if (colorData == null || colorData.isEmpty()) {

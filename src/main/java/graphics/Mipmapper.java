@@ -6,6 +6,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.*;
 
 import static graphics.TextureUtils.interpolate;
 
@@ -13,6 +14,7 @@ public class Mipmapper {
     private List<List<BufferedImage>> data = new ArrayList<>();
     private BufferedImage texture;
     private boolean generated = false;
+    private static final int THREADS_MAX = 4;
     
     public Mipmapper() {
         data.add(new ArrayList<>());
@@ -35,66 +37,105 @@ public class Mipmapper {
     }
     
     private void createMipmaps() {
-        generated = true;
-        
-        int steps = (int) Math.ceil(Math.log(Math.min(texture.getHeight(), texture.getWidth())) / Math.log(2));
-        
-        for (int m = 0; m < steps; m++) {
-            if (m != 0) {
-                data.add(new ArrayList<>());
-                BufferedImage prev = getMipmap(0, m - 1);
-                BufferedImage img = new BufferedImage(prev.getWidth(), prev.getHeight() / 2, prev.getType());
-                for (int i = 0; i < img.getHeight(); i++) {
-                    for (int j = 0; j < img.getWidth(); j++) {
-                        Color c;
-                        Color c1;
-                        Color c2;
-                        try {
-                            c1 = new Color(prev.getRGB(j, 2 * i));
-                            try {
-                                c2 = new Color(prev.getRGB(j, 2 * i + 1));
-                                c = interpolate(c1, c2, 0.5);
-                            } catch (ArrayIndexOutOfBoundsException e) {
-                                c = c1;
-                            }
-                        } catch (ArrayIndexOutOfBoundsException e) {
-                            c = new Color(0);
-                        }
-                        img.setRGB(j, i, c.getRGB());
-                    }
-                }
-                data.get(m).add(img);
-                //System.out.println("Width: " + img.getWidth() + " Height: " + img.getHeight());
-            }
-            for (int n = 1; n < steps; n++) {
-                BufferedImage prev = getMipmap(n - 1, m);
-                BufferedImage img = new BufferedImage(prev.getWidth() / 2, prev.getHeight(), prev.getType());
-                for (int i = 0; i < img.getHeight(); i++) {
-                    for (int j = 0; j < img.getWidth(); j++) {
-                        Color c;
-                        Color c1;
-                        Color c2;
-                        try {
-                            c1 = new Color(prev.getRGB(2 * j, i));
-                            try {
-                                c2 = new Color(prev.getRGB(2 * j + 1, i));
-                                c = interpolate(c1, c2, 0.5);
-                            } catch (ArrayIndexOutOfBoundsException e) {
-                                c = c1;
-                            }
-                        }
-                        catch (ArrayIndexOutOfBoundsException e) {
-                            c = new Color(0);
-                        }
-                        img.setRGB(j, i, c.getRGB());
-                    }
-                }
-                data.get(m).add(img);
-                //System.out.println("Width: " + img.getWidth() + " Height: " + img.getHeight());
-            }
+        {
+            generated = true;
+            ExecutorService executor = Executors.newFixedThreadPool(THREADS_MAX);
+            List<Future<?>> futures = new ArrayList<>();
             
+            int steps = (int) Math.ceil(Math.log(Math.min(texture.getHeight(), texture.getWidth())) / Math.log(2));
+    
+            for (int m = 0; m < steps; m++) {
+                if (m != 0) {
+                    futures.clear();
+                    data.add(new ArrayList<>());
+                    BufferedImage prev = getMipmap(0, m - 1);
+                    BufferedImage img = new BufferedImage(prev.getWidth(), prev.getHeight() / 2, prev.getType());
+                    
+                    for (int i = 0; i < img.getHeight(); i++) {
+                        int finalI = i;
+                        Future<?> future = executor.submit(() -> {
+                            for (int j = 0; j < img.getWidth(); j++) {
+                                Color c;
+                                Color c1;
+                                Color c2;
+                                try {
+                                    c1 = new Color(prev.getRGB(j, 2 * finalI));
+                                    try {
+                                        c2 = new Color(prev.getRGB(j, 2 * finalI + 1));
+                                        c = interpolate(c1, c2, 0.5);
+                                    } catch (ArrayIndexOutOfBoundsException e) {
+                                        c = c1;
+                                    }
+                                } catch (ArrayIndexOutOfBoundsException e) {
+                                    c = new Color(0);
+                                }
+                                img.setRGB(j, finalI, c.getRGB());
+                            }
+                        });
+                        futures.add(future);
+                    }
+    
+                    for (Future<?> future : futures) {
+                        try {
+                            future.get();
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        } catch (ExecutionException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                
+                    data.get(m).add(img);
+                    //System.out.println("Width: " + img.getWidth() + " Height: " + img.getHeight());
+                }
+                for (int n = 1; n < steps; n++) {
+                    futures.clear();
+                    BufferedImage prev = getMipmap(n - 1, m);
+                    BufferedImage img = new BufferedImage(prev.getWidth() / 2, prev.getHeight(), prev.getType());
+                    for (int i = 0; i < img.getHeight(); i++) {
+                        int finalI = i;
+                        Future<?> future = executor.submit(() -> {
+                            for (int j = 0; j < img.getWidth(); j++) {
+                                Color c;
+                                Color c1;
+                                Color c2;
+                                try {
+                                    c1 = new Color(prev.getRGB(2 * j, finalI));
+                                    try {
+                                        c2 = new Color(prev.getRGB(2 * j + 1, finalI));
+                                        c = interpolate(c1, c2, 0.5);
+                                    } catch (ArrayIndexOutOfBoundsException e) {
+                                        c = c1;
+                                    }
+                                } catch (ArrayIndexOutOfBoundsException e) {
+                                    c = new Color(0);
+                                }
+                                img.setRGB(j, finalI, c.getRGB());
+                            }
+                        });
+                        futures.add(future);
+                    }
+                    for (Future<?> future : futures) {
+                        try {
+                            future.get();
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        } catch (ExecutionException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                    data.get(m).add(img);
+                    //System.out.println("Width: " + img.getWidth() + " Height: " + img.getHeight());
+                }
+            }
+            executor.shutdown();
+            try {
+                executor.awaitTermination(120, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            //System.out.println("X: " + countX() + ", Y: " + countY());
         }
-        //System.out.println("X: " + countX() + ", Y: " + countY());
     }
     
     public BufferedImage getMipmap(int x, int y) {

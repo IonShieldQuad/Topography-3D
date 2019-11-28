@@ -61,7 +61,7 @@ public class MainWindow {
     
     private static final String TITLE = "Topography-3D";
     private List<Model> models = new ArrayList<>();
-    BufferedImage image;
+    Mipmapper image;
     Map<Integer, Double> tableData = new HashMap<>();
     ColorMapper colorMapper = new ColorMapper();
     ColorMapper.Mode[] modes = new ColorMapper.Mode[]{ColorMapper.Mode.RGB, ColorMapper.Mode.HSV, ColorMapper.Mode.HSL, ColorMapper.Mode.CIE76, ColorMapper.Mode.CIE94, ColorMapper.Mode.CIEDE2000};
@@ -225,7 +225,7 @@ public class MainWindow {
             try {
                 BufferedImage img = ImageIO.read(chooser.getSelectedFile());
                 imageNameField.setText(chooser.getSelectedFile().getName());
-                image = img;
+                image = new Mipmapper(img);
             } catch (IOException e) {
                 e.printStackTrace();
             }
