@@ -4,13 +4,17 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public class ColorMapper {
+    private Mipmapper mm = new Mipmapper();
+    
     private Mode mode;
     private double distancePower = 2;
     private double gamma = 2.2;
+    private boolean useMipmaps = true;
     
     private double m1 = 1;
     private double m2 = 1;
@@ -22,12 +26,24 @@ public class ColorMapper {
         this.mode = mode;
     }
     
-    public BiFunction<Double, Double, Double> mapColors(BufferedImage image, Map<Color, Double> colorData) {
+    public BiFunction<Double, Double, Double> mapColors(BufferedImage image, int resolution, Map<Color, Double> colorData) {
+        if (image != null && !Objects.equals(mm.getTexture(), image)) {
+            mm.loadTexture(image);
+        }
         return (inU, inV) -> {
             double u = Math.max(0, Math.min(1, inU));
             double v = Math.max(0, Math.min(1, inV));
     
-            Color pointColor = TextureUtils.getColor(image, u, v);
+            Color pointColor;
+            if (image != null && useMipmaps && resolution > 0) {
+                double mmU = Math.log(Math.max(1, image.getWidth() / (double)resolution)) / Math.log(2);
+                double mmV = Math.log(Math.max(1, image.getHeight() / (double)resolution)) / Math.log(2);
+                
+                pointColor = mm.getColor(u, v, mmU, mmV, TextureUtils.Filtering.ANISOTROPIC);
+            }
+            else {
+                pointColor = TextureUtils.getColor(image, u, v);
+            }
             
             if (colorData == null || colorData.isEmpty()) {
                 return 0.299 * pointColor.getRed() / 255.0 + 0.587 * pointColor.getGreen() / 255.0 + 0.114 * pointColor.getBlue() / 255;
@@ -140,6 +156,14 @@ public class ColorMapper {
     
     public void setM3(double m3) {
         this.m3 = m3;
+    }
+    
+    public boolean isUseMipmaps() {
+        return useMipmaps;
+    }
+    
+    public void setUseMipmaps(boolean useMipmaps) {
+        this.useMipmaps = useMipmaps;
     }
     
     public enum Mode {

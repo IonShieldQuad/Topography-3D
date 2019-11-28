@@ -163,13 +163,14 @@ public class MainWindow {
             colorMapper.setM1(m1);
             colorMapper.setM2(m2);
             colorMapper.setM3(m3);
+            colorMapper.setUseMipmaps(useMipmapsCheckBox.isSelected());
     
             Map<Color, Double> colorData = new HashMap<>();
             for (int i : tableData.keySet()) {
                 colorData.put(new Color(i), tableData.get(i));
             }
             
-            BiFunction<Double, Double, Double> f = colorMapper.mapColors(image, colorData);
+            BiFunction<Double, Double, Double> f = colorMapper.mapColors(image, resolution, colorData);
             
             ContourPlotDisplay3D.FunctionCache cache = new ContourPlotDisplay3D.FunctionCache((x, y) -> f.apply(x, 1 - y), resolution, 0, 1, 0, 1);
             
