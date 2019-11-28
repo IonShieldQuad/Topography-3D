@@ -54,24 +54,16 @@ public class MainWindow {
     private JTextField gammaField;
     private JCheckBox brightContoursCheckBox;
     private JCheckBox useMipmapsCheckBox;
-    private JTextField functionField;
-    private JTextField lowerY;
-    private JTextField upperY;
-    private JTextField lowerZ;
-    private JTextField upperZ;
-    private JTextField Zsteps;
-    private JTextField Xoffset;
-    private JTextField Yoffset;
-    private JTextField shiftX;
-    private JTextField shiftY;
-    private JCheckBox useCustomFunctionCheckBox;
-    private JCheckBox displayHiddenCheckBox;
-    private JTextField hiddenAlpha;
+    private JTextField param1Field;
+    private JTextField param2Field;
+    private JTextField param3Field;
+
     
     private static final String TITLE = "Topography-3D";
     private List<Model> models = new ArrayList<>();
     BufferedImage image;
     Map<Integer, Double> tableData = new HashMap<>();
+    ColorMapper colorMapper = new ColorMapper();
     ColorMapper.Mode[] modes = new ColorMapper.Mode[]{ColorMapper.Mode.RGB, ColorMapper.Mode.HSV, ColorMapper.Mode.HSL, ColorMapper.Mode.CIE76, ColorMapper.Mode.CIE94, ColorMapper.Mode.CIEDE2000};
     
     private MainWindow() {
@@ -154,6 +146,10 @@ public class MainWindow {
             double distancePower = Double.parseDouble(colorWeightField.getText());
             double gamma = Double.parseDouble(gammaField.getText());
             
+            double m1 = Double.parseDouble(param1Field.getText());
+            double m2 = Double.parseDouble(param2Field.getText());
+            double m3 = Double.parseDouble(param3Field.getText());
+            
             if (image == null) {
                 log.append("\nNo image selected");
                 return;
@@ -161,9 +157,12 @@ public class MainWindow {
             graph.setImage(image);
             //graph.getModels().put(models.get(modelSel.getSelectedIndex()), transform);
             //BiFunction<Double, Double, Double> f = (x, z) -> -((1/5.0) * Math.sin(x) * Math.cos(z) - (3/2.0) * Math.cos(7 * (Math.pow(x - Math.PI, 2) + Math.pow(z - Math.PI, 2))/4) * Math.exp(-(Math.pow(x - Math.PI, 2) + Math.pow(z - Math.PI, 2))));
-            ColorMapper colorMapper = new ColorMapper(modes[colorModeSel.getSelectedIndex()], distancePower);
-            
+            colorMapper.setMode(modes[colorModeSel.getSelectedIndex()]);
+            colorMapper.setDistancePower(distancePower);
             colorMapper.setGamma(gamma);
+            colorMapper.setM1(m1);
+            colorMapper.setM2(m2);
+            colorMapper.setM3(m3);
     
             Map<Color, Double> colorData = new HashMap<>();
             for (int i : tableData.keySet()) {

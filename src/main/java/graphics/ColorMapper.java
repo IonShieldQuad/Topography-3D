@@ -12,11 +12,14 @@ public class ColorMapper {
     private double distancePower = 2;
     private double gamma = 2.2;
     
+    private double m1 = 1;
+    private double m2 = 1;
+    private double m3 = 1;
+    
     public ColorMapper() {}
     
-    public ColorMapper(Mode mode, double distancePower) {
+    public ColorMapper(Mode mode) {
         this.mode = mode;
-        this.distancePower = distancePower;
     }
     
     public BiFunction<Double, Double, Double> mapColors(BufferedImage image, Map<Color, Double> colorData) {
@@ -64,9 +67,9 @@ public class ColorMapper {
     
                 double dh = Math.min(Math.abs(hsv1.h - hsv0.h), 360 - Math.abs(hsv1.h - hsv0.h)) / 180.0;
                 double ds = Math.abs(hsv1.s - hsv0.s);
-                double dv = Math.abs(hsv1.v - hsv0.v) / 255.0;
+                double dv = Math.abs(hsv1.v - hsv0.v);
     
-                return Math.sqrt(dh * dh + ds * ds + dv * dv);
+                return Math.sqrt(m1 * dh * dh + m2 * ds * ds + m3 * dv * dv);
             }
                 
             case HSL: {
@@ -77,17 +80,17 @@ public class ColorMapper {
                 double ds = Math.abs(hsl1.s - hsl0.s);
                 double dl = Math.abs(hsl1.l - hsl0.l);
     
-                return Math.sqrt(dh * dh + ds * ds + dl * dl);
+                return Math.sqrt(m1 * dh * dh + m2 * ds * ds + m3 * dl * dl);
             }
             
             case CIE76: {
                 LABColor lab0 = LABColor.fromXYZ(XYZColor.fromRGB(r1, g1, b1));
                 LABColor lab1 = LABColor.fromXYZ(XYZColor.fromRGB(r2, g2, b2));
-                return Math.sqrt((lab0.l - lab1.l) * (lab0.l - lab1.l) + (lab0.a - lab1.a) * (lab0.a - lab1.a) + (lab0.b - lab1.b) * (lab0.b - lab1.b));
+                return Math.sqrt(m1 * (lab0.l - lab1.l) * (lab0.l - lab1.l) + m2 * (lab0.a - lab1.a) * (lab0.a - lab1.a) + m3 * (lab0.b - lab1.b) * (lab0.b - lab1.b));
             }
             
             default:
-                return Math.sqrt((r1 - r2) * (r1 - r2) + (g1 - g2) * (g1 - g2) + (b1 - b2) * (b1 - b2));
+                return Math.sqrt(m1 * (r1 - r2) * (r1 - r2) + m2 * (g1 - g2) * (g1 - g2) + m3 * (b1 - b2) * (b1 - b2));
         }
     }
     
@@ -113,6 +116,30 @@ public class ColorMapper {
     
     public void setGamma(double gamma) {
         this.gamma = gamma;
+    }
+    
+    public double getM1() {
+        return m1;
+    }
+    
+    public void setM1(double m1) {
+        this.m1 = m1;
+    }
+    
+    public double getM2() {
+        return m2;
+    }
+    
+    public void setM2(double m2) {
+        this.m2 = m2;
+    }
+    
+    public double getM3() {
+        return m3;
+    }
+    
+    public void setM3(double m3) {
+        this.m3 = m3;
     }
     
     public enum Mode {
