@@ -57,7 +57,8 @@ public class MainWindow {
     private JTextField param1Field;
     private JTextField param2Field;
     private JTextField param3Field;
-
+    private JCheckBox showBaseTextureCheckBox;
+    
     
     private static final String TITLE = "Topography-3D";
     private List<Model> models = new ArrayList<>();
@@ -180,6 +181,7 @@ public class MainWindow {
             graph.setContours(contours);
             graph.setContourColor(brightContoursCheckBox.isSelected() ? Color.WHITE : Color.BLACK);
             graph.setUseMipmap(useMipmapsCheckBox.isSelected());
+            graph.setDrawFaces(showBaseTextureCheckBox.isSelected());
             
             graph.setParallelMode(modeSel.getSelectedIndex() == 0);
             graph.setShowOutline(showOutline.isSelected());
