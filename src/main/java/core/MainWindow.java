@@ -179,7 +179,7 @@ public class MainWindow {
             graph.setCache(cache);
             graph.setDrawContours(showContoursCheckBox.isSelected());
             graph.setContours(contours);
-            graph.setContourColor(brightContoursCheckBox.isSelected() ? Color.WHITE : Color.BLACK);
+            graph.setContourColor(brightContoursCheckBox.isSelected() ? Color.WHITE : (showBaseTextureCheckBox.isSelected() ? Color.BLACK : Color.CYAN));
             graph.setUseMipmap(useMipmapsCheckBox.isSelected());
             graph.setDrawFaces(showBaseTextureCheckBox.isSelected());
             
