@@ -368,11 +368,11 @@ public class ContourPlotDisplay3D extends JPanel {
                         PointDouble uvb = proj.uv(new Point3D(j, i + 1, 0));
         
                         //UV derivative
-                        double dudx = ((Math.abs(uv.getX() - uvl.getX()) + Math.abs(uv.getX() - uvr.getX()) + Math.abs(uv.getX() - uvt.getX()) + Math.abs(uv.getX() - uvb.getX())) / 2) * mm.getMipmap(0, 0).getWidth();
-                        double dvdy = ((Math.abs(uv.getY() - uvl.getY()) + Math.abs(uv.getY() - uvr.getY()) + Math.abs(uv.getY() - uvt.getY()) + Math.abs(uv.getY() - uvb.getY())) / 2) * mm.getMipmap(0, 0).getHeight();
-                        double mmU = Math.max(0, (Math.log(dudx) / Math.log(2)) + mipmapBiasU);
-                        double mmV = Math.max(0, (Math.log(dvdy) / Math.log(2)) + mipmapBiasV);
-                        //System.out.println("du/dx: " + dudx + ", dv/dy: " + dvdy + ", mmU: " + mmU + ", mmV: " + mmV);
+                        double dud = Math.sqrt(Math.pow((Math.abs(uv.getX() - uvl.getX()) + Math.abs(uv.getX() - uvr.getX())) / 2, 2) + Math.pow((Math.abs(uv.getX() - uvt.getX()) + Math.abs(uv.getX() - uvb.getX())) / 2, 2)) * mm.getMipmap(0, 0).getWidth();
+                        double dvd = Math.sqrt(Math.pow((Math.abs(uv.getY() - uvl.getY()) + Math.abs(uv.getY() - uvr.getY())) / 2, 2) + Math.pow((Math.abs(uv.getY() - uvt.getY()) + Math.abs(uv.getY() - uvb.getY())) / 2, 2)) * mm.getMipmap(0, 0).getHeight();
+                        double mmU = Math.max(0, (Math.log(dud) / Math.log(2)) + mipmapBiasU);
+                        double mmV = Math.max(0, (Math.log(dvd) / Math.log(2)) + mipmapBiasV);
+                        //System.out.println("du/dx: " + dud + ", dv/dy: " + dvd + ", mmU: " + mmU + ", mmV: " + mmV);
         
                         //Paint pixel
                         Color c;

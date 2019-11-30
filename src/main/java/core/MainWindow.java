@@ -194,13 +194,18 @@ public class MainWindow {
                 graph.setWarpZ(zCheckBox.isSelected());
             }
             else {
-                if (angleSel.getSelectedIndex() == 0) {
-                    graph.setAngleA(Math.toRadians(30));
-                    graph.setFactorL(0.5);
-                }
-                else {
-                    graph.setAngleA(Math.toRadians(45));
-                    graph.setFactorL(1);
+                switch (angleSel.getSelectedIndex()) {
+                    case 0:
+                        graph.setAngleA(Math.toRadians(30));
+                        graph.setFactorL(0.5);
+                        break;
+                    case 1:
+                        graph.setAngleA(Math.toRadians(45));
+                        graph.setFactorL(1);
+                        break;
+                    default:
+                        graph.setAngleA(Math.toRadians(0));
+                        graph.setFactorL(0);
                 }
             }
             

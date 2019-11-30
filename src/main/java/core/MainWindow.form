@@ -282,6 +282,7 @@
                   <model>
                     <item value="Cab"/>
                     <item value="Mil"/>
+                    <item value="0"/>
                   </model>
                 </properties>
               </component>
