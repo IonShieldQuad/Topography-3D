@@ -383,7 +383,7 @@ public class ContourPlotDisplay3D extends JPanel {
                                 c = mm.getColor(uv.getX(), 1 - uv.getY(), useMipmap ? mmU : 0, useMipmap ? mmV : 0, filtering);
                             }
                             else {
-                                return;
+                                c = getBackground();
                             }
                         }
                         synchronized (g) {
