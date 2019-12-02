@@ -58,6 +58,7 @@ public class MainWindow {
     private JTextField param2Field;
     private JTextField param3Field;
     private JCheckBox showBaseTextureCheckBox;
+    private JTextField rotAfield;
     
     
     private static final String TITLE = "Topography-3D";
@@ -136,11 +137,12 @@ public class MainWindow {
             double rotX = Double.parseDouble(rotXField.getText());
             double rotY = Double.parseDouble(rotYField.getText());
             double rotZ = Double.parseDouble(rotZField.getText());
+            double rotA = Double.parseDouble(rotAfield.getText());
             
             double scaleX = Double.parseDouble(scaleXField.getText());
             double scaleY = Double.parseDouble(scaleYField.getText());
             double scaleZ = Double.parseDouble(scaleZField.getText());
-            Transform3D transform = new Transform3D(new Point3D(offX, offY, offZ), new Point3D(Math.toRadians(rotX), Math.toRadians(rotY), Math.toRadians(rotZ)), new Point3D(scaleX, scaleY, scaleZ));
+            Transform3D transform = new Transform3D(new Point3D(offX, offY, offZ), new Rotation3D(Math.toRadians(rotA), rotX, rotY, rotZ), new Point3D(scaleX, scaleY, scaleZ));
             
             int resolution = Integer.parseInt(resolutionField.getText());
             int contours = Integer.parseInt(contoursField.getText());

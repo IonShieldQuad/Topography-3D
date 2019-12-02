@@ -84,17 +84,29 @@ public class Polygon {
         
         
         Matrix sm = Matrix.scaleMatrix3D(t.scale.getX(), t.scale.getY(), t.scale.getZ());
-        Matrix rm = Matrix.rotationMatrix3D(t.rotation.getX(), t.rotation.getY(), t.rotation.getZ());
+        /*Matrix rm = Matrix.rotationMatrix3D(t.rotation.getX(), t.rotation.getY(), t.rotation.getZ());*/
         Matrix om = Matrix.offsetMatrix3D(t.offset.getX(), t.offset.getY(), t.offset.getZ());
         
         am = am.multiply(sm);
         bm = bm.multiply(sm);
         cm = cm.multiply(sm);
+    
+        poly.a = new Point3D(am.get(0, 0), am.get(1, 0), am.get(2, 0), a.getU(), a.getV());
+        poly.b = new Point3D(bm.get(0, 0), bm.get(1, 0), bm.get(2, 0), b.getU(), b.getV());
+        poly.c = new Point3D(cm.get(0, 0), cm.get(1, 0), cm.get(2, 0), c.getU(), c.getV());
         
+        poly.a = t.rotation.applyTo(poly.a);
+        poly.b = t.rotation.applyTo(poly.b);
+        poly.c = t.rotation.applyTo(poly.c);
+        
+        am = poly.a.toMatrix();
+        bm = poly.b.toMatrix();
+        cm = poly.c.toMatrix();
+        /*
         am = am.multiply(rm);
         bm = bm.multiply(rm);
         cm = cm.multiply(rm);
-        
+        */
         am = am.multiply(om);
         bm = bm.multiply(om);
         cm = cm.multiply(om);
